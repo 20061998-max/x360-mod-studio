@@ -1,0 +1,389 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================
+    // Global Hardened Helpers
+    // =========================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedEmail() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() &&
+        isVerifiedEmail() &&
+        request.auth.token.email == 'josuelroque05052020@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isSignedIn() &&
+        isVerifiedEmail() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // =========================================================
+    // Entity Validation Blueprints
+    // =========================================================
+    function isValidAdminUser(data, docId) {
+      return data.keys().hasAll(['uid', 'email', 'addedBy', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'addedBy', 'createdAt']) &&
+        data.uid is string && data.uid == docId && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.addedBy is string && data.addedBy.size() >= 1 && data.addedBy.size() <= 128 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidUserProfile(data, docId) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid == docId && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+        data.photoURL is string && data.photoURL.size() <= 500 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPlan(data, docId) {
+      return data.keys().hasAll([
+          'id', 'name', 'billingLabel', 'description', 'priceCents',
+          'durationDays', 'features', 'active', 'highlighted', 'sortOrder',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'billingLabel', 'description', 'priceCents',
+          'durationDays', 'features', 'active', 'highlighted', 'sortOrder',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id == docId && isValidId(data.id) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        data.billingLabel is string && data.billingLabel.size() >= 1 && data.billingLabel.size() <= 40 &&
+        data.description is string && data.description.size() <= 300 &&
+        data.priceCents is int && data.priceCents >= 0 && data.priceCents <= 10000000 &&
+        data.durationDays is int && data.durationDays >= 1 && data.durationDays <= 36500 &&
+        data.features is list && data.features.size() <= 10 &&
+        (data.features.size() == 0 || (data.features[0] is string && data.features[0].size() >= 1 && data.features[0].size() <= 120)) &&
+        data.active is bool &&
+        data.highlighted is bool &&
+        data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidBillingSettings(data) {
+      return data.keys().hasAll([
+          'paywallEnabled', 'pixKey', 'paymentLink',
+          'paymentInstructions', 'supportContact', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'paywallEnabled', 'pixKey', 'paymentLink',
+          'paymentInstructions', 'supportContact', 'creatorPhotoUrl', 'updatedAt'
+        ]) &&
+        data.paywallEnabled is bool &&
+        data.pixKey is string && data.pixKey.size() <= 180 &&
+        data.paymentLink is string && data.paymentLink.size() <= 300 &&
+        data.paymentInstructions is string && data.paymentInstructions.size() <= 800 &&
+        data.supportContact is string && data.supportContact.size() <= 180 &&
+        (!('creatorPhotoUrl' in data) || (data.creatorPhotoUrl is string && data.creatorPhotoUrl.size() <= 500)) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserSubscription(data, docId) {
+      return data.keys().hasAll([
+          'userId', 'userEmail', 'userName', 'planId', 'planName',
+          'priceCents', 'durationDays', 'status', 'startsAt', 'expiresAt',
+          'notes', 'updatedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'userEmail', 'userName', 'planId', 'planName',
+          'priceCents', 'durationDays', 'status', 'startsAt', 'expiresAt',
+          'notes', 'updatedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.userId is string && data.userId == docId && isValidId(data.userId) &&
+        data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 160 &&
+        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 120 &&
+        data.planId is string && data.planId.size() >= 1 && data.planId.size() <= 128 &&
+        data.planName is string && data.planName.size() >= 1 && data.planName.size() <= 80 &&
+        data.priceCents is int && data.priceCents >= 0 && data.priceCents <= 10000000 &&
+        data.durationDays is int && data.durationDays >= 1 && data.durationDays <= 36500 &&
+        data.status in ['active', 'expired', 'suspended'] &&
+        data.startsAt is timestamp &&
+        data.expiresAt is timestamp &&
+        data.notes is string && data.notes.size() <= 300 &&
+        data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSubscriptionRequest(data) {
+      return data.keys().hasAll([
+          'userId', 'userEmail', 'userName', 'planId', 'planName',
+          'priceCents', 'durationDays', 'paymentReference', 'status',
+          'adminNote', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'userEmail', 'userName', 'planId', 'planName',
+          'priceCents', 'durationDays', 'paymentReference', 'status',
+          'adminNote', 'createdAt', 'updatedAt'
+        ]) &&
+        data.userId is string && isValidId(data.userId) &&
+        data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 160 &&
+        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 120 &&
+        data.planId is string && isValidId(data.planId) &&
+        data.planName is string && data.planName.size() >= 1 && data.planName.size() <= 80 &&
+        data.priceCents is int && data.priceCents >= 0 && data.priceCents <= 10000000 &&
+        data.durationDays is int && data.durationDays >= 1 && data.durationDays <= 36500 &&
+        data.paymentReference is string && data.paymentReference.size() <= 200 &&
+        data.status in ['pending', 'approved', 'rejected'] &&
+        data.adminNote is string && data.adminNote.size() <= 300 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidShowcaseItem(data, docId) {
+      return data.keys().hasAll([
+          'id', 'title', 'category', 'gameTitle', 'version', 'description',
+          'priceCents', 'imageUrl', 'actionUrl', 'highlights', 'published',
+          'featured', 'sortOrder', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'title', 'category', 'gameTitle', 'version', 'description',
+          'priceCents', 'imageUrl', 'actionUrl', 'highlights', 'published',
+          'featured', 'sortOrder', 'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id == docId && isValidId(data.id) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 50 &&
+        data.gameTitle is string && data.gameTitle.size() >= 1 && data.gameTitle.size() <= 80 &&
+        data.version is string && data.version.size() <= 30 &&
+        data.description is string && data.description.size() <= 600 &&
+        data.priceCents is int && data.priceCents >= 0 && data.priceCents <= 10000000 &&
+        data.imageUrl is string && data.imageUrl.size() <= 500 &&
+        data.actionUrl is string && data.actionUrl.size() <= 400 &&
+        data.highlights is list && data.highlights.size() <= 8 &&
+        (data.highlights.size() == 0 || (data.highlights[0] is string && data.highlights[0].size() >= 1 && data.highlights[0].size() <= 100)) &&
+        data.published is bool &&
+        data.featured is bool &&
+        data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // =========================================================
+    // Collections
+    // =========================================================
+
+    // Admins Registry
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin() &&
+        isValidId(userId) &&
+        isValidAdminUser(incoming(), userId) &&
+        incoming().addedBy == request.auth.uid &&
+        incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Private User Profiles (PII Isolated)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() &&
+        isVerifiedEmail() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().uid == request.auth.uid &&
+        incoming().email == request.auth.token.email &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isSignedIn() &&
+        isVerifiedEmail() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Subscription Plans (Public Read, Admin-Only Write)
+    match /plans/{planId} {
+      allow get: if isValidId(planId);
+      allow list: if true;
+      allow create: if isAdmin() &&
+        isValidId(planId) &&
+        isValidPlan(incoming(), planId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isAdmin() &&
+        isValidId(planId) &&
+        isValidPlan(incoming(), planId) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'billingLabel', 'description', 'priceCents',
+          'durationDays', 'features', 'active', 'highlighted',
+          'sortOrder', 'updatedAt'
+        ]);
+      allow delete: if isAdmin() && isValidId(planId);
+    }
+
+    // Global Billing & Paywall Settings (Public Get for billing doc, Admin-Only Write)
+    match /siteSettings/{settingId} {
+      allow get: if settingId == 'billing';
+      allow list: if false;
+      allow create: if isAdmin() &&
+        settingId == 'billing' &&
+        isValidBillingSettings(incoming()) &&
+        incoming().updatedAt == request.time;
+      allow update: if isAdmin() &&
+        settingId == 'billing' &&
+        isValidBillingSettings(incoming()) &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'paywallEnabled', 'pixKey', 'paymentLink',
+          'paymentInstructions', 'supportContact', 'creatorPhotoUrl', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    // Authoritative User Subscriptions (Owner/Admin Read, Admin-Only Write)
+    match /subscriptions/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if (isSignedIn() && existing().userId == request.auth.uid) || isAdmin();
+      allow create: if isAdmin() &&
+        isValidId(userId) &&
+        isValidUserSubscription(incoming(), userId) &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (incoming().planId == 'manual' || exists(/databases/$(database)/documents/plans/$(incoming().planId)));
+      allow update: if isAdmin() &&
+        isValidId(userId) &&
+        isValidUserSubscription(incoming(), userId) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'userEmail', 'userName', 'planId', 'planName', 'priceCents',
+          'durationDays', 'status', 'startsAt', 'expiresAt', 'notes',
+          'updatedBy', 'updatedAt'
+        ]);
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Subscription Activation Requests
+    match /subscriptionRequests/{requestId} {
+      allow get: if isValidId(requestId) && ((isSignedIn() && existing().userId == request.auth.uid) || isAdmin());
+      allow list: if (isSignedIn() && existing().userId == request.auth.uid) || isAdmin();
+      allow create: if isSignedIn() &&
+        isVerifiedEmail() &&
+        isValidId(requestId) &&
+        isValidSubscriptionRequest(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().userEmail == request.auth.token.email &&
+        incoming().status == 'pending' &&
+        incoming().adminNote == '' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/plans/$(incoming().planId)) &&
+        get(/databases/$(database)/documents/plans/$(incoming().planId)).data.active == true &&
+        incoming().priceCents == get(/databases/$(database)/documents/plans/$(incoming().planId)).data.priceCents &&
+        incoming().durationDays == get(/databases/$(database)/documents/plans/$(incoming().planId)).data.durationDays;
+      allow update: if isSignedIn() &&
+        isVerifiedEmail() &&
+        isValidId(requestId) &&
+        isValidSubscriptionRequest(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().userEmail == existing().userEmail &&
+        incoming().userName == existing().userName &&
+        incoming().planId == existing().planId &&
+        incoming().priceCents == existing().priceCents &&
+        incoming().durationDays == existing().durationDays &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt'])
+          ) || (
+            existing().userId == request.auth.uid &&
+            existing().status == 'pending' &&
+            incoming().status == 'pending' &&
+            incoming().adminNote == existing().adminNote &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['paymentReference', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(requestId) && (
+        isAdmin() ||
+        (isSignedIn() && isVerifiedEmail() && existing().userId == request.auth.uid && existing().status == 'pending')
+      );
+    }
+
+    // Product Showcase (Published items readable publicly; unpublished & all writes Admin-only)
+    match /showcaseItems/{itemId} {
+      allow get: if isValidId(itemId) && (existing().published == true || isAdmin());
+      allow list: if existing().published == true || isAdmin();
+      allow create: if isAdmin() &&
+        isValidId(itemId) &&
+        isValidShowcaseItem(incoming(), itemId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isAdmin() &&
+        isValidId(itemId) &&
+        isValidShowcaseItem(incoming(), itemId) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'category', 'gameTitle', 'version', 'description',
+          'priceCents', 'imageUrl', 'actionUrl', 'highlights', 'published',
+          'featured', 'sortOrder', 'updatedAt'
+        ]);
+      allow delete: if isAdmin() && isValidId(itemId);
+    }
+
+    // Startup Connectivity Probe
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, write: if false;
+    }
+  }
+}

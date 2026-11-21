@@ -1,0 +1,530 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Administrador autorizado a gerenciar planos, configurações de assinatura e assinantes.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Firebase Auth UID do administrador."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160,
+          "description": "E-mail verificado do administrador."
+        },
+        "addedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "UID de quem concedeu o acesso administrativo."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na criação."
+        }
+      },
+      "required": ["uid", "email", "addedBy", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil privado do usuário autenticado (PII isolada para dono e administradores).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Firebase Auth UID do usuário."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160,
+          "description": "E-mail da conta Google."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Nome de exibição."
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "URL opcional do avatar."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na criação."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na última atualização."
+        }
+      },
+      "required": ["uid", "email", "displayName", "createdAt", "updatedAt"]
+    },
+    "SubscriptionPlan": {
+      "title": "SubscriptionPlan",
+      "description": "Plano de assinatura configurável pelo administrador (valor, duração em dias, benefícios e status).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Identificador único do plano."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Nome do plano (ex: Mensal Pro, Anual VIP)."
+        },
+        "billingLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "Rótulo de recorrência ou período (ex: Mensal, Anual, 90 dias)."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Resumo do plano."
+        },
+        "priceCents": {
+          "type": "integer",
+          "description": "Valor do plano em centavos de BRL (ex: 1990 = R$ 19,90)."
+        },
+        "durationDays": {
+          "type": "integer",
+          "description": "Duração da assinatura em dias (ex: 30, 90, 365)."
+        },
+        "features": {
+          "type": "array",
+          "description": "Lista limitada (máximo 10 itens) de benefícios do plano."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Indica se o plano está disponível para assinatura."
+        },
+        "highlighted": {
+          "type": "boolean",
+          "description": "Destaca o plano como recomendado."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "description": "Ordem de exibição."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na criação."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na atualização."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "billingLabel",
+        "description",
+        "priceCents",
+        "durationDays",
+        "features",
+        "active",
+        "highlighted",
+        "sortOrder",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BillingSettings": {
+      "title": "BillingSettings",
+      "description": "Configurações globais de cobrança, paywall e instruções de pagamento definidas pelo administrador.",
+      "type": "object",
+      "properties": {
+        "paywallEnabled": {
+          "type": "boolean",
+          "description": "Quando verdadeiro, exige assinatura ativa para acessar as ferramentas do estúdio."
+        },
+        "pixKey": {
+          "type": "string",
+          "maxLength": 180,
+          "description": "Chave Pix ou identificador exibido para pagamento."
+        },
+        "paymentLink": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "URL opcional de checkout externo."
+        },
+        "paymentInstructions": {
+          "type": "string",
+          "maxLength": 800,
+          "description": "Instruções exibidas ao assinante no momento da contratação."
+        },
+        "supportContact": {
+          "type": "string",
+          "maxLength": 180,
+          "description": "Canal de contato para envio de comprovante ou suporte."
+        },
+        "creatorPhotoUrl": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "URL opcional da foto exibida ao lado da assinatura do criador."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na atualização."
+        }
+      },
+      "required": [
+        "paywallEnabled",
+        "pixKey",
+        "paymentLink",
+        "paymentInstructions",
+        "supportContact",
+        "updatedAt"
+      ]
+    },
+    "UserSubscription": {
+      "title": "UserSubscription",
+      "description": "Registro autoritativo da assinatura do usuário gerenciado exclusivamente pelo administrador.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "UID do assinante."
+        },
+        "userEmail": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160,
+          "description": "E-mail do assinante."
+        },
+        "userName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Nome do assinante."
+        },
+        "planId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "ID do plano associado ou 'manual'."
+        },
+        "planName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Nome do plano concedido."
+        },
+        "priceCents": {
+          "type": "integer",
+          "description": "Valor registrado em centavos."
+        },
+        "durationDays": {
+          "type": "integer",
+          "description": "Duração em dias concedida."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "expired", "suspended"],
+          "description": "Status atual da assinatura."
+        },
+        "startsAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data de início da vigência."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data de expiração da assinatura."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Observações administrativas."
+        },
+        "updatedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "UID do administrador responsável pela última alteração."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na criação."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na última atualização."
+        }
+      },
+      "required": [
+        "userId",
+        "userEmail",
+        "userName",
+        "planId",
+        "planName",
+        "priceCents",
+        "durationDays",
+        "status",
+        "startsAt",
+        "expiresAt",
+        "notes",
+        "updatedBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SubscriptionRequest": {
+      "title": "SubscriptionRequest",
+      "description": "Solicitação de ativação ou renovação de assinatura enviada pelo usuário.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "UID do solicitante."
+        },
+        "userEmail": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160,
+          "description": "E-mail do solicitante."
+        },
+        "userName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Nome do solicitante."
+        },
+        "planId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "ID do plano solicitado em /plans."
+        },
+        "planName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Nome do plano no momento da solicitação."
+        },
+        "priceCents": {
+          "type": "integer",
+          "description": "Valor em centavos copiado do plano ativo."
+        },
+        "durationDays": {
+          "type": "integer",
+          "description": "Duração em dias copiada do plano ativo."
+        },
+        "paymentReference": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Código de comprovante, ID Pix ou observação de pagamento."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"],
+          "description": "Status da solicitação."
+        },
+        "adminNote": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Observação do administrador ao aprovar ou recusar."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na criação."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na última atualização."
+        }
+      },
+      "required": [
+        "userId",
+        "userEmail",
+        "userName",
+        "planId",
+        "planName",
+        "priceCents",
+        "durationDays",
+        "paymentReference",
+        "status",
+        "adminNote",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ConnectionProbe": {
+      "title": "ConnectionProbe",
+      "description": "Documento de verificação de conectividade inicial com Firestore.",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ShowcaseItem": {
+      "title": "ShowcaseItem",
+      "description": "Produto ou pacote de mod exibido na Vitrine pública do site.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "gameTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "version": {
+          "type": "string",
+          "maxLength": 30
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "priceCents": {
+          "type": "integer"
+        },
+        "imageUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "actionUrl": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "highlights": {
+          "type": "array",
+          "description": "Lista limitada (máximo 8 itens) de destaques do produto."
+        },
+        "published": {
+          "type": "boolean"
+        },
+        "featured": {
+          "type": "boolean"
+        },
+        "sortOrder": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "category",
+        "gameTitle",
+        "version",
+        "description",
+        "priceCents",
+        "imageUrl",
+        "actionUrl",
+        "highlights",
+        "published",
+        "featured",
+        "sortOrder",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{userId}": {
+      "schema": {
+        "$ref": "#/entities/AdminUser"
+      },
+      "description": "Registro de administradores autorizados."
+    },
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Perfis privados dos usuários autenticados (PII isolada)."
+    },
+    "/plans/{planId}": {
+      "schema": {
+        "$ref": "#/entities/SubscriptionPlan"
+      },
+      "description": "Planos de assinatura e preços gerenciados pelo administrador."
+    },
+    "/siteSettings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/BillingSettings"
+      },
+      "description": "Configurações globais de cobrança e paywall (documento 'billing')."
+    },
+    "/subscriptions/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserSubscription"
+      },
+      "description": "Assinaturas ativas, expiradas ou suspensas por usuário."
+    },
+    "/subscriptionRequests/{requestId}": {
+      "schema": {
+        "$ref": "#/entities/SubscriptionRequest"
+      },
+      "description": "Solicitações de ativação de assinatura enviadas por usuários."
+    },
+    "/showcaseItems/{itemId}": {
+      "schema": {
+        "$ref": "#/entities/ShowcaseItem"
+      },
+      "description": "Produtos e pacotes de mods publicados na Vitrine."
+    },
+    "/test/{docId}": {
+      "schema": {
+        "$ref": "#/entities/ConnectionProbe"
+      },
+      "description": "Rota somente leitura para teste de conexão inicial (test/connection)."
+    }
+  }
+}

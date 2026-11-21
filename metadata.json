@@ -1,0 +1,6 @@
+{
+  "name": "X360 Mod Studio",
+  "description": "Estúdio web para criar patches binários (IPS/JSON), editar offsets hexadecimais Big-Endian, estruturar mods de jogos de Xbox 360 e gerar configurações launch.ini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
