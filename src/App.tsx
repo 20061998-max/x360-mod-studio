@@ -1,6 +1,26 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
-import { CreditCard, Download, FileUp, LogIn, Menu, ShieldCheck } from 'lucide-react';
+import {
+  getRedirectResult,
+  onAuthStateChanged,
+  signInWithPopup,
+  signInWithRedirect,
+  signOut,
+  type User,
+} from 'firebase/auth';
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  CreditCard,
+  Download,
+  ExternalLink,
+  FileUp,
+  LogIn,
+  Menu,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
+import firebaseConfig from '../firebase-applet-config.json';
 import { AdminPanelView } from './components/AdminPanelView';
 import { AutoOrganizerView } from './components/AutoOrganizerView';
 import { BinaryPatcherView } from './components/BinaryPatcherView';
@@ -58,6 +78,84 @@ const TAB_TITLES: Record<WorkspaceTab, string> = {
   admin: 'Painel Administrador',
 };
 
+interface AuthErrorState {
+  code: string;
+  title: string;
+  message: string;
+  domain?: string;
+}
+
+function parseFirebaseAuthError(error: unknown): AuthErrorState {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code ?? 'auth/unknown')
+      : 'auth/unknown';
+  const currentHost =
+    typeof window !== 'undefined'
+      ? window.location.hostname || window.location.origin
+      : '';
+
+  switch (code) {
+    case 'auth/unauthorized-domain':
+      return {
+        code,
+        title: 'Domínio não autorizado no Firebase',
+        message:
+          'O login com Google foi bloqueado porque este endereço ainda não está na lista de domínios autorizados do seu projeto Firebase.',
+        domain: currentHost,
+      };
+    case 'auth/popup-blocked':
+      return {
+        code,
+        title: 'Pop-up de login bloqueado pelo navegador',
+        message:
+          'Libere pop-ups para este site nas configurações do navegador ou abra o endereço diretamente no Chrome/Safari (fora de navegadores internos como WhatsApp/Instagram).',
+      };
+    case 'auth/popup-closed-by-user':
+      return {
+        code,
+        title: 'Login cancelado',
+        message:
+          'A janela do Google foi fechada antes de terminar o login. Toque em "Entrar com Google" novamente e selecione sua conta.',
+      };
+    case 'auth/cancelled-popup-request':
+      return {
+        code,
+        title: 'Janela de login já estava em andamento',
+        message:
+          'A solicitação anterior foi cancelada por um novo toque. Aguarde 1 segundo e toque em "Entrar com Google" apenas uma vez.',
+      };
+    case 'auth/operation-not-supported-in-this-environment':
+      return {
+        code,
+        title: 'Navegador incompatível com pop-up do Google',
+        message:
+          'Este ambiente ou navegador interno não suporta a janela do Google. Abra o site diretamente no Google Chrome ou Safari.',
+      };
+    case 'auth/network-request-failed':
+      return {
+        code,
+        title: 'Falha de conexão ao autenticar',
+        message:
+          'Não foi possível conectar ao servidor do Google/Firebase. Verifique sua conexão com a internet e tente novamente.',
+      };
+    case 'auth/web-storage-unsupported':
+      return {
+        code,
+        title: 'Armazenamento/cookies bloqueados',
+        message:
+          'Seu navegador bloqueou cookies ou armazenamento local necessários para o login. Desative o bloqueio de cookies de terceiros ou saia da guia anônima.',
+      };
+    default:
+      return {
+        code,
+        title: 'Não foi possível concluir o login com Google',
+        message:
+          'Tente novamente em alguns instantes. Se estiver acessando pelo link público, verifique se o domínio está autorizado no Firebase.',
+      };
+  }
+}
+
 export default function App() {
   const [projects, setProjects] = useState<ModProject[]>(() => loadModProjects());
   const [activeProjectId, setActiveProjectId] = useState<string>(() => {
@@ -70,6 +168,9 @@ export default function App() {
 
   // Firebase Auth & Subscription State
   const [authReady, setAuthReady] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const [authError, setAuthError] = useState<AuthErrorState | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -100,6 +201,20 @@ export default function App() {
     let unsubSub: (() => void) | null = null;
     let unsubReqs: (() => void) | null = null;
 
+    let active = true;
+
+    void getRedirectResult(auth)
+      .then((result) => {
+        if (!active) return;
+        if (result?.user) {
+          setAuthError(null);
+        }
+      })
+      .catch((error) => {
+        if (!active) return;
+        setAuthError(parseFirebaseAuthError(error));
+      });
+
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       unsubAdmin?.();
       unsubSub?.();
@@ -118,6 +233,8 @@ export default function App() {
         return;
       }
 
+      setAuthError(null);
+
       void upsertUserProfile(user).catch(() => {
         // Handled & logged by handleFirestoreError inside upsertUserProfile
       });
@@ -135,6 +252,7 @@ export default function App() {
     });
 
     return () => {
+      active = false;
       unsubAuth();
       unsubAdmin?.();
       unsubSub?.();
@@ -143,11 +261,50 @@ export default function App() {
   }, []);
 
   const handleSignIn = async () => {
+    if (signingIn) return;
+    setSigningIn(true);
+    setAuthError(null);
     try {
       await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      const code =
+        typeof error === 'object' && error !== null && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : '';
+      let isTopLevel = false;
+      try {
+        isTopLevel = window.self === window.top;
+      } catch {
+        isTopLevel = false;
+      }
+
+      if (
+        isTopLevel &&
+        (code === 'auth/popup-blocked' ||
+          code === 'auth/operation-not-supported-in-this-environment')
+      ) {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectError) {
+          setAuthError(parseFirebaseAuthError(redirectError));
+          return;
+        }
+      }
+
+      setAuthError(parseFirebaseAuthError(error));
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const handleCopyDomain = async (domain: string) => {
+    try {
+      await navigator.clipboard.writeText(domain);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2000);
     } catch {
-      setImportNotice('Login cancelado ou bloqueado pelo navegador.');
-      setTimeout(() => setImportNotice(null), 3500);
+      // Clipboard may be restricted
     }
   };
 
@@ -273,6 +430,7 @@ export default function App() {
         paywallEnabled={billingSettings.paywallEnabled}
         onSignIn={handleSignIn}
         onSignOut={handleSignOut}
+        signingIn={signingIn}
         creatorPhotoUrl={billingSettings.creatorPhotoUrl}
       />
 
@@ -326,11 +484,14 @@ export default function App() {
             {!currentUser ? (
               <button
                 type="button"
+                disabled={signingIn}
                 onClick={() => void handleSignIn()}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed text-slate-100 border border-slate-700 rounded-md transition-colors whitespace-nowrap shrink-0"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Entrar</span>
+                <span className="hidden sm:inline">
+                  {signingIn ? 'Entrando...' : 'Entrar'}
+                </span>
               </button>
             ) : (
               !isAdmin &&
@@ -367,6 +528,95 @@ export default function App() {
         </header>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1280px] w-full mx-auto">
+          {importNotice && (
+            <div className="mb-4 px-4 py-2.5 rounded-md border border-emerald-700/60 bg-emerald-950/50 text-emerald-200 text-xs sm:text-sm flex items-center justify-between gap-3 xl:hidden">
+              <span>{importNotice}</span>
+              <button
+                type="button"
+                onClick={() => setImportNotice(null)}
+                className="p-1 text-emerald-300 hover:text-white shrink-0"
+                aria-label="Fechar aviso"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {authError && (
+            <div
+              role="alert"
+              className="mb-6 rounded-lg border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100 space-y-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <div className="font-semibold text-white">
+                      {authError.title}
+                    </div>
+                    <p className="text-xs sm:text-sm text-red-200 leading-relaxed">
+                      {authError.message}
+                    </p>
+                    <p className="text-[11px] font-mono text-red-300/80">
+                      Código: {authError.code}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAuthError(null)}
+                  className="p-1 text-red-300 hover:text-white shrink-0"
+                  aria-label="Fechar alerta de login"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {authError.domain && (
+                <div className="rounded-md bg-[#0B111E] border border-red-500/30 p-3 space-y-2.5 text-xs">
+                  <div className="text-slate-300">
+                    Para liberar o login neste endereço, adicione o domínio abaixo em{' '}
+                    <strong className="text-white">
+                      Firebase Console → Authentication → Settings → Authorized domains
+                    </strong>
+                    :
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-emerald-300 font-mono">
+                      {authError.domain}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyDomain(authError.domain!)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+                    >
+                      {copiedDomain ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          Copiado
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          Copiar domínio
+                        </>
+                      )}
+                    </button>
+                    <a
+                      href={`https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/settings`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Abrir Firebase Auth
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'plans' && (
             <PlansView
               user={currentUser}
@@ -376,6 +626,7 @@ export default function App() {
               mySubscription={mySubscription}
               myRequests={myRequests}
               onSignIn={handleSignIn}
+              signingIn={signingIn}
               onOpenAdmin={() => setActiveTab('admin')}
             />
           )}
@@ -396,6 +647,7 @@ export default function App() {
                 mySubscription={mySubscription}
                 myRequests={myRequests}
                 onSignIn={handleSignIn}
+                signingIn={signingIn}
               />
             ))}
 
@@ -420,6 +672,7 @@ export default function App() {
               plans={plans}
               mySubscription={mySubscription}
               onSignIn={handleSignIn}
+              signingIn={signingIn}
               onGoPlans={() => setActiveTab('plans')}
               onGoManual={() => setActiveTab('manual')}
               onGoShowcase={() => setActiveTab('showcase')}

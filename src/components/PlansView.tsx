@@ -35,6 +35,7 @@ interface PlansViewProps {
   mySubscription: UserSubscription | null;
   myRequests: SubscriptionRequest[];
   onSignIn: () => Promise<void>;
+  signingIn?: boolean;
   onOpenAdmin?: () => void;
 }
 
@@ -46,6 +47,7 @@ export function PlansView({
   mySubscription,
   myRequests,
   onSignIn,
+  signingIn = false,
   onOpenAdmin,
 }: PlansViewProps) {
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
@@ -211,11 +213,12 @@ export function PlansView({
         {!user && (
           <button
             type="button"
+            disabled={signingIn}
             onClick={() => void onSignIn()}
-            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-md transition-colors whitespace-nowrap shrink-0 self-start md:self-auto"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-md transition-colors whitespace-nowrap shrink-0 self-start md:self-auto"
           >
             <LogIn className="w-4 h-4" />
-            Entrar com Google
+            {signingIn ? 'Entrando...' : 'Entrar com Google'}
           </button>
         )}
       </section>

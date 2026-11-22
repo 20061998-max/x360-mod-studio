@@ -40,6 +40,7 @@ interface SidebarProps {
   paywallEnabled: boolean;
   onSignIn: () => Promise<void>;
   onSignOut: () => Promise<void>;
+  signingIn?: boolean;
   creatorPhotoUrl?: string;
 }
 
@@ -77,6 +78,7 @@ export function Sidebar({
   paywallEnabled,
   onSignIn,
   onSignOut,
+  signingIn = false,
   creatorPhotoUrl,
 }: SidebarProps) {
   const [creating, setCreating] = useState(false);
@@ -339,11 +341,15 @@ export function Sidebar({
         ) : (
           <button
             type="button"
-            onClick={() => void onSignIn()}
-            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-md transition-colors"
+            disabled={signingIn}
+            onClick={() => {
+              onCloseMobile();
+              void onSignIn();
+            }}
+            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-md transition-colors"
           >
             <LogIn className="w-3.5 h-3.5" />
-            Entrar com Google
+            {signingIn ? 'Entrando...' : 'Entrar com Google'}
           </button>
         )}
       </div>

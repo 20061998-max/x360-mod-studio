@@ -9,6 +9,7 @@ interface SubscriptionGateProps {
   plans: SubscriptionPlan[];
   mySubscription: UserSubscription | null;
   onSignIn: () => Promise<void>;
+  signingIn?: boolean;
   onGoPlans: () => void;
   onGoManual: () => void;
   onGoShowcase: () => void;
@@ -19,6 +20,7 @@ export function SubscriptionGate({
   plans,
   mySubscription,
   onSignIn,
+  signingIn = false,
   onGoPlans,
   onGoManual,
   onGoShowcase,
@@ -81,11 +83,12 @@ export function SubscriptionGate({
           {!user && (
             <button
               type="button"
+              disabled={signingIn}
               onClick={() => void onSignIn()}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-md transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-slate-800 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed text-slate-100 border border-slate-700 rounded-md transition-colors"
             >
               <LogIn className="w-4 h-4" />
-              Já assinei · Entrar com Google
+              {signingIn ? 'Entrando...' : 'Já assinei · Entrar com Google'}
             </button>
           )}
 
